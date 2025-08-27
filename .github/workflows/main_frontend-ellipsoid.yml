@@ -73,7 +73,7 @@ jobs:
         with:
           app-name: 'frontend-ellipsoid'
           slot-name: 'Production'
-          package: ./frontend/builds
+          package: ./frontend/build
 
 
 
