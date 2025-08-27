@@ -8,6 +8,7 @@ on:
       - 'backend/**'
       - 'geo_ner/**'
       - 'utils/**'
+      - 'requirements.txt'
   pull_request:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - 'backend/**'
       - 'geo_ner/**'
       - 'utils/**'
+      - 'requirements.txt'
   workflow_dispatch:
 
 jobs:
@@ -39,16 +41,16 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
           path: |
-            .
-            !venv/
+            backend/**
+            geo_ner/**
+            utils/**
+            requirements.txt
 
   deploy:
     runs-on: ubuntu-latest
@@ -78,3 +80,4 @@ jobs:
         with:
           app-name: 'ellipsoid-no-docker'
           slot-name: 'Production'
+          package: .
