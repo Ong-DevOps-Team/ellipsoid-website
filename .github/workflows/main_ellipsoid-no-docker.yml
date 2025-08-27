@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - 'geo_ner/**'
+      - 'utils/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'geo_ner/**'
+      - 'utils/**'
   workflow_dispatch:
 
 jobs:
