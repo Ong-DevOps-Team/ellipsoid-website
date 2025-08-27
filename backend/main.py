@@ -12,15 +12,15 @@ from pathlib import Path
 # Add parent directory to path to import modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from auth.auth_service import AuthService, get_current_user
-from models.user_models import User, UserLogin, UserResponse
-from models.chat_models import ChatMessage, ChatRequest, ChatResponse, SavedChat, SavedChatList
-from models.settings_models import UserSettings, SettingsResponse
-from services.chatbot_service import ChatbotService
-from services.rag_service import RAGService
-from services.mongo_service import MongoService
-from config.settings import get_settings
-from logging_system import info, error, warning, critical, debug
+from backend.auth.auth_service import AuthService, get_current_user
+from backend.models.user_models import User, UserLogin, UserResponse
+from backend.models.chat_models import ChatMessage, ChatRequest, ChatResponse, SavedChat, SavedChatList
+from backend.models.settings_models import UserSettings, SettingsResponse
+from backend.services.chatbot_service import ChatbotService
+from backend.services.rag_service import RAGService
+from backend.services.mongo_service import MongoService
+from backend.config.settings import get_settings
+from backend.logging_system import info, error, warning, critical, debug
 
 app = FastAPI(title="Ellipsoid Labs API", version="1.0.0")
 
@@ -31,7 +31,8 @@ app.add_middleware(
         "http://localhost:3000",  # React dev server
         "https://orange-ground-0080e851e.2.azurestaticapps.net",  # ACTUAL frontend domain
         "https://www.ellipsoidlabs.com",  # Custom domain (planned)
-        "https://ellipsoidlabs.com"       # Custom domain without www
+        "https://ellipsoidlabs.com",
+        "https://frontend-ellipsoid.azurewebsites.net"       # Custom domain without www
     ],
     allow_credentials=True,
     allow_methods=["*"],
