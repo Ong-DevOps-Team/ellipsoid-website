@@ -1,0 +1,551 @@
+.chatbot-container {
+  display: flex;
+  height: calc(100vh - 80px);
+  max-width: 1400px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.chatbot-sidebar {
+  width: 300px;
+  background: #f8f9fa;
+  border-right: 1px solid #e9ecef;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  margin-bottom: 2rem;
+}
+
+.sidebar-section h3 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 0.5rem;
+}
+
+.sidebar-btn {
+  width: 100%;
+  padding: 10px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.3s ease;
+}
+
+.sidebar-btn:hover {
+  background: #5a6fd8;
+}
+
+.saved-chats-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.saved-chat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.load-chat-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: all 0.3s ease;
+}
+
+.load-chat-btn:hover {
+  background: #f8f9fa;
+  border-color: #667eea;
+}
+
+.delete-chat-btn {
+  padding: 6px 8px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.delete-chat-btn:hover {
+  background: #c82333;
+}
+
+.auth-error {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.auth-error p {
+  margin: 0.5rem 0;
+  color: #856404;
+  font-size: 14px;
+}
+
+.auth-error .sidebar-btn {
+  margin-top: 0.5rem;
+  background: #dc3545;
+}
+
+.auth-error .sidebar-btn:hover {
+  background: #c82333;
+}
+
+.chatbot-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  background: #f8f9fa;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.message-content {
+  flex: 1;
+  max-width: 70%;
+}
+
+.message.user .message-content {
+  text-align: right;
+}
+
+.message-text {
+  background: white;
+  padding: 1rem;
+  border-radius: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  line-height: 1.6;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  font-family: inherit;
+}
+
+/* Preserve formatting for AI responses */
+.message.assistant .message-text {
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+/* Ensure proper spacing for paragraphs and lists */
+.message-text p {
+  margin: 0 0 1rem 0;
+}
+
+.message-text p:last-child {
+  margin-bottom: 0;
+}
+
+.message-text ul, .message-text ol {
+  margin: 0 0 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.message-text li {
+  margin-bottom: 0.5rem;
+}
+
+.message-text li:last-child {
+  margin-bottom: 0;
+}
+
+/* Preserve code blocks and inline code */
+.message-text code {
+  background: #f8f9fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.message-text pre {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid #e9ecef;
+}
+
+.message-text pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.message.user .message-text {
+  background: #667eea;
+  color: white;
+}
+
+.loading-indicator {
+  color: #666;
+  font-style: italic;
+}
+
+.chat-input {
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  background: white;
+  border-top: 1px solid #e9ecef;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.chat-input textarea {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: none;
+  font-family: inherit;
+  height: 40px;
+  line-height: 1.4;
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.send-btn {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: #5a6fd8;
+  transform: translateY(-1px);
+}
+
+.send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.save-chat-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.modal-content h3 {
+  margin-bottom: 1.5rem;
+  color: #333;
+}
+
+.chat-title-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 1.5rem;
+}
+
+.chat-title-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  padding: 10px 20px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.cancel-btn {
+  padding: 10px 20px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .chatbot-container {
+    flex-direction: column;
+    height: auto;
+    margin: 1rem;
+  }
+  
+  .chatbot-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e9ecef;
+  }
+  
+  .message-content {
+    max-width: 85%;
+  }
+  
+  .chat-input {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .send-btn {
+    align-self: flex-end;
+  }
+}
+
+/* Authentication required message */
+.auth-required-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+  padding: 2rem;
+}
+
+.auth-required-message h3 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.auth-required-message p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+/* Geo-link styling */
+.geo-link {
+  color: #1f77b4;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.geo-link:hover {
+  color: #0d5aa7;
+  text-decoration: none;
+}
+
+/* Geo-link styling in user messages - ensure good contrast on blue background */
+.message.user .geo-link {
+  color: #b3d9ff;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.message.user .geo-link:hover {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* Control group styling for checkboxes */
+.control-group {
+  margin-bottom: 1.5rem;
+}
+
+.control-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
+
+.control-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.control-group small {
+  display: block;
+  color: #666;
+  font-size: 12px;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* ChatGIS Map Container and Styling */
+.chatgis-map-container {
+  position: relative;
+  height: 500px; /* Default height for map display */
+  overflow: hidden;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  transition: height 0.3s ease;
+  flex-shrink: 0; /* Prevent the map from shrinking unexpectedly */
+}
+
+#chatgisMapView { 
+  width: 100%; 
+  height: 500px; 
+  border-radius: 10px; 
+  transition: height 0.3s ease;
+}
+
+/* ChatGIS Map Toggle Button - positioned over bottom-right corner */
+.chatgis-map-toggle-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: #1f77b4;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.chatgis-map-toggle-btn:hover {
+  background: #0d5aa7;
+}
+
+.chatgis-map-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* Minimized ChatGIS map state */
+.chatgis-map-container.chatgis-minimized {
+  height: 60px !important;
+  overflow: hidden;
+  flex-shrink: 0; /* Maintain consistent flex behavior */
+}
+
+.chatgis-map-container.chatgis-minimized #chatgisMapView {
+  height: 60px !important;
+}
+
+/* Intermediate ChatGIS map state */
+.chatgis-map-container.chatgis-intermediate {
+  height: 280px !important;
+  overflow: hidden;
+  flex-shrink: 0; /* Maintain consistent flex behavior */
+}
+
+.chatgis-map-container.chatgis-intermediate #chatgisMapView {
+  height: 280px !important;
+}
+
+/* ChatGIS maximized map state */
+.chatgis-map-container.chatgis-maximized {
+  height: 500px !important;
+  overflow: hidden;
+  flex-shrink: 0; /* Maintain consistent flex behavior */
+}
+
+.chatgis-map-container.chatgis-maximized #chatgisMapView {
+  height: 500px !important;
+}
+
+/* ChatGIS Icon transitions */
+.chatgis-minimize-icon, .chatgis-restore-icon {
+  transition: opacity 0.3s ease;
+}
+
+/* Dynamic height based on ChatGIS map state */
+.chatbot-main.map-expanded .chat-messages {
+  /* When map is expanded (500px), limit chat area height */
+  max-height: calc(100vh - 80px - 500px - 120px); /* viewport - header - map - input */
+}
+
+.chatbot-main.map-minimized .chat-messages {
+  /* When map is minimized (60px), allow more space for chat */
+  max-height: calc(100vh - 80px - 60px - 120px); /* viewport - header - map - input */
+}
+
+.chatbot-main.map-intermediate .chat-messages {
+  /* When map is intermediate (280px), provide balanced space for chat */
+  max-height: calc(100vh - 80px - 280px - 120px); /* viewport - header - map - input */
+}

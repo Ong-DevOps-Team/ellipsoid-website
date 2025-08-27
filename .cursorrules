@@ -1,0 +1,27 @@
+# Cursor Rules Template
+# Copy this file to .cursorrules in your project root and customize as needed
+
+## Environment & Shell Rules
+- Always use PowerShell, never Bash
+- Always activate the Python virtual environment before running Python commands
+- Do not run any Python commands unless the virtual environment is active
+- Use `.\.venv\Scripts\activate` to activate the virtual environment
+- Do not use the && syntax as that is not recognized by Powershell
+
+## Git Rules
+- Do not run git commands unless explicitly instructed by the user
+- Wait for user permission before any git operations
+
+## Project-Specific Rules
+# Add your project-specific rules below:
+# - Framework preferences
+# - Coding standards
+# - Testing requirements
+# - Architecture patterns
+
+## General Development Rules
+# Add your general development preferences below:
+# - Code style preferences
+# - Naming conventions
+# - Documentation requirements
+# - Performance considerations

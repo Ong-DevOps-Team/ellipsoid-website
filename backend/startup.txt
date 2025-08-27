@@ -1,0 +1,24 @@
+# Azure App Service Startup Command
+# Copy this command to Azure Portal → App Service → Configuration → General settings → Startup Command
+
+python -m pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Alternative startup commands:
+# Option 1: Using startup script
+# python -m pip install -r requirements.txt && python run_server.py
+
+# Option 2: Using module uvicorn
+# python -m pip install -r requirements.txt && python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Note: Always include dependency installation (python -m pip install -r requirements.txt)
+# because Azure creates fresh containers that don't have dependencies installed.
+
+# IMPORTANT: No environment variables need to be configured in Azure App Service settings.
+# All secrets and configuration are loaded from the environment_production.cfg file
+# which is deployed with the application code.
+
+# NOTE: The GitHub Actions workflow now deploys:
+# - backend/ directory (FastAPI app)
+# - geo_ner/ directory (NER services)
+# - requirements.txt (dependencies)
+# So the startup command should NOT include "cd backend" - we're already in the right directory.

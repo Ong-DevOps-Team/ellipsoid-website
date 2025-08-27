@@ -1,0 +1,449 @@
+#!/usr/bin/env python3
+"""
+Geocoding Module for PDF NER Application
+
+This module handles geocoding of named entities using Esri's geocoding service.
+It takes text with XML tags around entities and returns text with geocoding coordinates.
+"""
+
+import re
+import requests
+import time
+from typing import Tuple, Optional
+from .logging_config import get_logger
+
+# Get logger for this module
+logger = get_logger(__name__)
+
+# Esri geocoding service URL - this is public and doesn't need to be secret
+ESRI_GEOCODING_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
+
+
+def calculate_max_delta_from_extent(extent: dict) -> float:
+    """
+    Calculate the maximum delta (difference) from extent information.
+    
+    Handles extents that cross special coordinate boundaries (equator, prime meridian, 
+    anti-prime meridian) for accurate delta calculation.
+
+    FIXME: Investigate python packages such as geopy to handle lat/lon arithmetic (and more).
+    
+    Args:
+        extent (dict): Extent information with xmin, xmax, ymin, ymax keys
+        
+    Returns:
+        float: Maximum delta value from latitude and longitude differences
+        
+    Raises:
+        ValueError: If extent is invalid or missing required keys
+    """
+    if not extent or not all(key in extent for key in ['xmin', 'xmax', 'ymin', 'ymax']):
+        raise ValueError("Invalid extent: missing required keys (xmin, xmax, ymin, ymax)")
+    
+    try:
+        # Extract extent boundaries
+        xmin, xmax = extent['xmin'], extent['xmax']
+        ymin, ymax = extent['ymin'], extent['ymax']
+        
+        # Calculate latitude delta (always straightforward - no wrapping - even crossing equator)
+        delta_latitude = abs(ymax - ymin)
+        
+        # Calculate longitude delta with special handling for meridian crossings
+        delta_longitude = _calculate_longitude_delta(xmin, xmax)
+        
+        # Take the maximum delta
+        max_delta = max(delta_latitude, delta_longitude)
+
+        # Add a percentage to maxdela so boundary cases are zoomed out one level
+        max_delta *= 1.1
+        
+        return max_delta
+    except (KeyError, ValueError, TypeError) as e:
+        raise ValueError(f"Error calculating delta from extent: {e}")
+
+
+def _calculate_longitude_delta(xmin: float, xmax: float) -> float:
+    """
+    Calculate longitude delta with proper handling for meridian crossings.
+    
+    Uses sign detection to determine meridian crossing type:
+    - Different signs: Check if spanning prime meridian or anti-prime meridian
+    - Same signs: Simple absolute difference
+    
+    Args:
+        xmin (float): Minimum longitude (-180 to 180)
+        xmax (float): Maximum longitude (-180 to 180)
+        
+    Returns:
+        float: Longitude delta accounting for meridian crossings
+    """
+    # Normalize longitudes to [-180, 180] range
+    xmin = _normalize_longitude(xmin)
+    xmax = _normalize_longitude(xmax)
+    
+    # Check if xmin and xmax have different signs (one negative, one positive)
+    if (xmin < 0 and xmax > 0) or (xmin > 0 and xmax < 0):
+        # Different signs - determine which meridian is being crossed
+        abs_sum = abs(xmin) + abs(xmax)
+        
+        if abs_sum <= 180:
+            # Spanning prime meridian (0°) - add absolute values
+            return abs_sum
+        else:
+            # Spanning anti-prime meridian (±180°) - add absolute values then subtract from 360°
+            return 360.0 - abs_sum
+    else:
+        # Same signs or one is zero - normal case, no meridian crossing
+        return abs(xmax - xmin)
+
+
+def _normalize_longitude(longitude: float) -> float:
+    """
+    Normalize longitude to the [-180, 180] range.  This is probably unnecessary,
+    but ensures consistent handling of longitude values even if they are nonsensically
+    outside this range.
+    
+    Args:
+        longitude (float): Longitude value (any range)
+        
+    Returns:
+        float: Normalized longitude in [-180, 180] range
+    """
+    # Handle the case where longitude is exactly 180 or -180
+    if longitude == 180.0 or longitude == -180.0:
+        return longitude
+    
+    # Normalize to [-180, 180] range using modulo arithmetic
+    normalized = ((longitude + 180.0) % 360.0) - 180.0
+    
+    return normalized
+
+
+def calculate_zoom_level_from_extent(extent: dict) -> int:
+    """
+    Calculate zoom level based on extent information from Esri geocoding response.
+    
+    Args:
+        extent (dict): Extent information with xmin, xmax, ymin, ymax keys
+        
+    Returns:
+        int: Zoom level (3-16)
+    """
+    if not extent or not all(key in extent for key in ['xmin', 'xmax', 'ymin', 'ymax']):
+        return 16  # Default zoom level
+    
+    try:
+        # Calculate the maximum delta using the dedicated function
+        max_delta = calculate_max_delta_from_extent(extent)
+        
+        # Determine zoom level based on max_delta
+        if max_delta >= 106:
+            zoom_level = 2
+        elif max_delta >= 53:  
+            zoom_level = 3
+        elif max_delta >= 26.5:  
+            zoom_level = 4
+        elif max_delta >= 13.25:  
+            zoom_level = 5
+        elif max_delta >= 6.625:  
+            zoom_level = 6
+        elif max_delta >= 3.3125:  
+            zoom_level = 7
+        elif max_delta >= 1.65625:  
+            zoom_level = 8
+        elif max_delta >= 0.828125:  
+            zoom_level = 9
+        elif max_delta >= 0.4140625:  
+            zoom_level = 10
+        elif max_delta >= 0.20703125:
+            zoom_level = 11
+        elif max_delta >= 0.103515625:  
+            zoom_level = 12
+        elif max_delta >= 0.0517578125:  
+            zoom_level = 13
+        elif max_delta >= 0.02587890625:  
+            zoom_level = 14
+        elif max_delta >= 0.012939453125:
+            zoom_level = 15
+        else:  
+            zoom_level = 16
+
+        return zoom_level
+    except (ValueError, TypeError):
+        return 16  # Default zoom level on error
+
+
+def _select_best_candidate(candidates: list, areas_of_interest: Optional[list], entity_text: str) -> Optional[dict]:
+    """
+    Select the best candidate from multiple geocoding candidates.
+    
+    If areas_of_interest is specified, searches through areas in priority order to find
+    the first candidate that falls within any area. If no candidates fall within any area,
+    returns the first candidate (fallback behavior).
+    If areas_of_interest is not specified, returns the first candidate.
+    
+    Args:
+        candidates (list): List of candidate results from Esri geocoding API
+        areas_of_interest (list, optional): List of area-of-interest bounds, each with keys:
+            - 'min_lat': Minimum latitude (float)
+            - 'max_lat': Maximum latitude (float) 
+            - 'min_lon': Minimum longitude (float)
+            - 'max_lon': Maximum longitude (float)
+        entity_text (str): The text of the entity being geocoded (for logging)
+        
+    Returns:
+        dict or None: The selected candidate, or None if no candidates available
+    """
+    if not candidates:
+        return None
+    
+    # If no areas_of_interest specified, return the first candidate (original behavior)
+    if not areas_of_interest:
+        logger.debug(f"No areas_of_interest specified for '{entity_text}', selecting first candidate")
+        return candidates[0]
+    
+    # Validate areas_of_interest is a list
+    if not isinstance(areas_of_interest, list):
+        logger.warning(f"Invalid areas_of_interest format for '{entity_text}'. Expected list, got {type(areas_of_interest)}. Using first candidate.")
+        return candidates[0]
+    
+    # Priority-based search through areas
+    required_keys = ['min_lat', 'max_lat', 'min_lon', 'max_lon']
+    
+    for area_idx, area in enumerate(areas_of_interest):
+        # Validate each area
+        if not isinstance(area, dict):
+            logger.warning(f"Invalid area format at index {area_idx} for '{entity_text}'. Expected dict, got {type(area)}. Skipping area.")
+            continue
+            
+        if not all(key in area for key in required_keys):
+            logger.warning(f"Invalid area format at index {area_idx} for '{entity_text}'. Required keys: {required_keys}. Skipping area.")
+            continue
+        
+        # Extract bounds
+        try:
+            min_lat, max_lat = area['min_lat'], area['max_lat']
+            min_lon, max_lon = area['min_lon'], area['max_lon']
+        except (KeyError, TypeError):
+            logger.warning(f"Invalid area bounds at index {area_idx} for '{entity_text}'. Skipping area.")
+            continue
+        
+        # Validate bounds
+        if min_lat >= max_lat or min_lon >= max_lon:
+            logger.warning(f"Invalid area bounds at index {area_idx} for '{entity_text}': min values must be less than max values. Skipping area.")
+            continue
+        
+        # Look for candidates within this area
+        for candidate_idx, candidate in enumerate(candidates):
+            location = candidate.get('location', {})
+            lat = location.get('y')
+            lon = location.get('x')
+            
+            if lat is not None and lon is not None:
+                try:
+                    lat_float = float(lat)
+                    lon_float = float(lon)
+                    
+                    # Check if coordinates are within bounds of this area
+                    if min_lat <= lat_float <= max_lat and min_lon <= lon_float <= max_lon:
+                        logger.debug(f"Selected candidate {candidate_idx+1}/{len(candidates)} for '{entity_text}' at ({lat_float}, {lon_float}) - within area-of-interest {area_idx+1}")
+                        return candidate
+                except (ValueError, TypeError):
+                    continue
+    
+    # No candidates found within any area-of-interest, fallback to first candidate
+    logger.debug(f"No candidates for '{entity_text}' found within any area-of-interest (checked {len(candidates)} candidates across {len(areas_of_interest)} areas), using first candidate as fallback")
+    return candidates[0]
+
+
+def geocode_entity(entity_text: str, entity_type: str, api_key: str, areas_of_interest: Optional[list] = None) -> Tuple[Optional[float], Optional[float], Optional[int]]:
+    """
+    Geocode a named entity using Esri's geocoding service.
+    
+    When multiple candidates are found and areas_of_interest is specified,
+    searches through areas in priority order to find the first candidate 
+    that falls within any area. If no candidates fall within any area, 
+    returns the first candidate (fallback behavior).
+    
+    Args:
+        entity_text (str): The text of the entity to geocode
+        entity_type (str): The type of entity (GPE, LOC, or address)
+        api_key (str): The Esri API key for geocoding
+        areas_of_interest (list, optional): List of area-of-interest bounds, each with keys:
+            - 'min_lat': Minimum latitude (float)
+            - 'max_lat': Maximum latitude (float) 
+            - 'min_lon': Minimum longitude (float)
+            - 'max_lon': Maximum longitude (float)
+        
+    Returns:
+        Tuple[Optional[float], Optional[float], Optional[int]]: (latitude, longitude, zoom_level) or (None, None, None) if not found
+        
+    Raises:
+        ValueError: If API key is not configured or invalid
+        requests.RequestException: If geocoding request fails
+    """
+    # Check if API key is configured
+    if api_key == "YOUR_ESRI_API_KEY_HERE" or not api_key:
+        logger.error(f"Esri API key not configured for entity '{entity_text}'")
+        raise ValueError("Esri API key not configured. Please provide a valid API key")
+    
+    logger.debug(f"Geocoding entity '{entity_text}' with API key: {api_key[:10]}...")
+    
+    try:
+        # Prepare the geocoding request - get multiple candidates when areas_of_interest is specified
+        max_locations = 10 if areas_of_interest else 1
+        params = {
+            'f': 'json',
+            'singleLine': entity_text,
+            'maxLocations': max_locations,
+            'outFields': '*',
+            'token': api_key
+        }
+        
+        logger.debug(f"Making request to Esri geocoding service for '{entity_text}'")
+        
+        # Make the request to Esri's geocoding service
+        response = requests.get(ESRI_GEOCODING_URL, params=params, timeout=10)
+        
+        # Check for HTTP errors
+        response.raise_for_status()
+        
+        data = response.json()
+        logger.debug(f"Geocoding API response status: {response.status_code}")
+        
+        # Check for API-specific errors
+        if 'error' in data:
+            error_msg = data['error'].get('message', 'Unknown API error')
+            logger.error(f"Esri API error for '{entity_text}': {error_msg}")
+            if 'token' in error_msg.lower() or 'invalid' in error_msg.lower():
+                raise ValueError(f"Invalid or expired API key: {error_msg}")
+            else:
+                raise ValueError(f"Geocoding API error: {error_msg}")
+        
+        # Check if candidates were found
+        if 'candidates' in data and len(data['candidates']) > 0:
+            candidates = data['candidates']
+            logger.debug(f"Found {len(candidates)} candidates for '{entity_text}'")
+            
+            # Select the best candidate based on areas_of_interest if provided
+            selected_candidate = _select_best_candidate(candidates, areas_of_interest, entity_text)
+            
+            if selected_candidate:
+                location = selected_candidate.get('location', {})
+                lat = location.get('y')
+                lon = location.get('x')
+                
+                if lat is not None and lon is not None:
+                    lat_float = float(lat)
+                    lon_float = float(lon)
+                    
+                    # Extract extent information and calculate zoom level
+                    extent = selected_candidate.get('extent', {})
+                    zoom_level = calculate_zoom_level_from_extent(extent)
+                    
+                    logger.debug(f"Geocoding successful for '{entity_text}': ({lat_float}, {lon_float}) with zoom level {zoom_level}")
+                    return lat_float, lon_float, zoom_level
+                else:
+                    logger.debug(f"Selected candidate for '{entity_text}' has no location data: {selected_candidate}")
+            else:
+                logger.debug(f"No candidate selected for '{entity_text}' from {len(candidates)} candidates")
+        else:
+            logger.debug(f"No candidates found in API response for '{entity_text}'")
+        
+        logger.debug(f"No geocoding results found for '{entity_text}'")
+        return None, None, None
+        
+    except requests.RequestException as e:
+        logger.error(f"Request failed for '{entity_text}': {e}")
+        raise requests.RequestException(f"Geocoding request failed for '{entity_text}': {e}")
+    except ValueError as e:
+        # Re-raise ValueError (API key or API errors)
+        logger.error(f"ValueError for '{entity_text}': {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error for '{entity_text}': {e}")
+        raise Exception(f"Unexpected error during geocoding for '{entity_text}': {e}")
+
+
+def add_geocoding_to_xml_tags(tagged_text: str, api_key: str, areas_of_interest: Optional[list] = None) -> str:
+    """
+    Add geocoding information to XML tags in the text.
+    
+    This function processes XML tags around entities and adds geocoding coordinates.
+    If geocoding fails, the entity is treated as having no coordinates ("none").
+    
+    Args:
+        tagged_text (str): Text with XML tags around entities
+        api_key (str): The Esri API key for geocoding
+        areas_of_interest (list, optional): List of area-of-interest bounds for candidate selection
+        
+    Returns:
+        str: Text with geocoding information added to XML tags
+        
+    Raises:
+        requests.RequestException: If geocoding request fails
+    """
+    # Pattern to match XML tags: <LOC>text</LOC> (all entities are normalized to LOC tags)
+    pattern = r'<LOC>(.*?)</LOC>'
+    
+    # Count total entities found
+    all_entities = re.findall(pattern, tagged_text)
+    logger.debug(f"Found {len(all_entities)} entities to geocode: {all_entities[:5]}...")
+    
+    def replace_with_geocoding(match):
+        entity_text = match.group(1)
+        
+        try:
+            logger.debug(f"Attempting to geocode entity: '{entity_text}'")
+            # Geocode the entity with areas_of_interest support (all entities are now LOC type)
+            lat, lon, zoom_level = geocode_entity(entity_text, "LOC", api_key, areas_of_interest)
+            
+            # Add geocoding info to the tag
+            if lat is not None and lon is not None and zoom_level is not None:
+                logger.debug(f"Successfully geocoded '{entity_text}' to ({lat}, {lon}) with zoom {zoom_level}")
+                return f'<LOC lat="{lat}" lon="{lon}" zoom_level="{zoom_level}">{entity_text}</LOC>'
+            else:
+                logger.debug(f"Geocoding failed for '{entity_text}' - no coordinates returned")
+                return f'<LOC lat="none" lon="none" zoom_level="none">{entity_text}</LOC>'
+        except (requests.RequestException, Exception) as e:
+            logger.error(f"Exception during geocoding of '{entity_text}': {e}")
+            # Re-raise the exception to be handled by the caller
+            raise e
+    
+    # Replace all XML tags with geocoded versions
+    geocoded_text = re.sub(pattern, replace_with_geocoding, tagged_text)
+    
+    # Count final results
+    successful_geocodes = len(re.findall(r'<LOC\s+lat="[^"]+"\s+lon="[^"]+"\s+zoom_level="[^"]+">', geocoded_text))
+    failed_geocodes = len(re.findall(r'<LOC\s+lat="none"\s+lon="none"\s+zoom_level="none">', geocoded_text))
+    logger.debug(f"Geocoding complete: {successful_geocodes} successful, {failed_geocodes} failed")
+    
+    return geocoded_text
+
+
+def process_text_with_geocoding(tagged_text: str, api_key: str, delay: float = 0.5, areas_of_interest: Optional[list] = None) -> str:
+    """
+    Process text with XML tags and add geocoding information.
+    
+    This function processes text containing XML tags around entities and adds
+    geocoding coordinates.
+    
+    Args:
+        tagged_text (str): Text with XML tags around entities
+        api_key (str): The Esri API key for geocoding
+        delay (float): Delay between geocoding requests in seconds
+        areas_of_interest (list, optional): List of area-of-interest bounds for candidate selection
+        
+    Returns:
+        str: Text with geocoding information added to XML tags
+        
+    Raises:
+        requests.RequestException: If geocoding request fails
+    """
+    # Add geocoding to XML tags with areas_of_interest support
+    geocoded_text = add_geocoding_to_xml_tags(tagged_text, api_key, areas_of_interest)
+    
+    # Add delay to be respectful to the API
+    time.sleep(delay)
+    
+    return geocoded_text 

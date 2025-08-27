@@ -1,0 +1,7 @@
+# Test dependencies for backend API testing
+requests>=2.25.1
+typing-extensions>=4.0.0
+
+# Optional: for better debugging and testing
+pytest>=6.0.0
+pytest-requests>=0.3.0
